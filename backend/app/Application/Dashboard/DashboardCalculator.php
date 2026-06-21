@@ -2,6 +2,7 @@
 
 namespace App\Application\Dashboard;
 
+use App\Application\FX\FxService;
 use App\Application\Valuation\InvestmentValuation;
 use App\Models\Investment;
 use App\Models\InvestmentStrategyAllocation;
@@ -17,6 +18,7 @@ final class DashboardCalculator
 {
     public function __construct(
         private readonly InvestmentValuation $valuation,
+        private readonly FxService $fxService,
     ) {}
 
     /**
@@ -33,7 +35,7 @@ final class DashboardCalculator
     public function summary(string $userId, string $currency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $rows = $investments->map(fn (Investment $i) => $this->computeRow($i));
+        $rows = $investments->map(fn (Investment $i) => $this->normalizeRow($this->computeRow($i), $i, $currency));
 
         $totalValue = $rows->sum('current_value') ?? 0.0;
         $totalCost = $rows->sum('purchase_value') ?? 0.0;
@@ -64,14 +66,14 @@ final class DashboardCalculator
      *     target_percent: float|null, deviation_points: float|null
      * }>
      */
-    public function allocation(string $userId): array
+    public function allocation(string $userId, string $baseCurrency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $totalValue = $investments->map(fn (Investment $i) => $this->currentValue($i))->sum();
+        $totalValue = $investments->map(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency))->sum();
         $actual = $investments
             ->groupBy(fn (Investment $i) => $i->assetType->code)
-            ->map(function (Collection $group) use ($totalValue) {
-                $value = $group->sum(fn (Investment $i) => $this->currentValue($i));
+            ->map(function (Collection $group) use ($totalValue, $baseCurrency) {
+                $value = $group->sum(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency));
                 $first = $group->first();
 
                 return [
@@ -137,14 +139,14 @@ final class DashboardCalculator
      *     pnl_percent: float|null, weight: float, status: string
      * }>
      */
-    public function breakdown(string $userId): array
+    public function breakdown(string $userId, string $baseCurrency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $totalValue = $investments->map(fn (Investment $i) => $this->currentValue($i))->sum();
+        $totalValue = $investments->map(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency))->sum();
 
         return $investments
-            ->map(function (Investment $i) use ($totalValue) {
-                $row = $this->computeRow($i);
+            ->map(function (Investment $i) use ($totalValue, $baseCurrency) {
+                $row = $this->normalizeRow($this->computeRow($i), $i, $baseCurrency);
 
                 return [
                     'id' => $i->id,
@@ -169,15 +171,15 @@ final class DashboardCalculator
      *
      * @return list<array{country_code: string, value: float, percent: float, count: int}>
      */
-    public function countryAllocation(string $userId): array
+    public function countryAllocation(string $userId, string $baseCurrency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $totalValue = $investments->map(fn (Investment $i) => $this->currentValue($i))->sum();
+        $totalValue = $investments->map(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency))->sum();
         $countryTotals = [];
         $countryCounts = [];
 
         foreach ($investments as $i) {
-            $value = $this->currentValue($i);
+            $value = $this->valueInCurrency($i, $baseCurrency);
             $allocations = $i->country_allocations;
 
             if (! empty($allocations) && is_array($allocations)) {
@@ -212,15 +214,15 @@ final class DashboardCalculator
      *
      * @return list<array{geography: string, value: float, percent: float, count: int}>
      */
-    public function geographyAllocation(string $userId): array
+    public function geographyAllocation(string $userId, string $baseCurrency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $totalValue = $investments->map(fn (Investment $i) => $this->currentValue($i))->sum();
+        $totalValue = $investments->map(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency))->sum();
 
         return $investments
             ->groupBy(fn (Investment $i) => $i->geography ?? 'Non défini')
-            ->map(function (Collection $group) use ($totalValue) {
-                $value = $group->sum(fn (Investment $i) => $this->currentValue($i));
+            ->map(function (Collection $group) use ($totalValue, $baseCurrency) {
+                $value = $group->sum(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency));
 
                 return [
                     'geography' => $group->first()->geography ?? 'Non défini',
@@ -239,15 +241,15 @@ final class DashboardCalculator
      *
      * @return list<array{sector: string, value: float, percent: float, count: int}>
      */
-    public function sectorAllocation(string $userId): array
+    public function sectorAllocation(string $userId, string $baseCurrency = 'EUR'): array
     {
         $investments = $this->loadActiveInvestments($userId);
-        $totalValue = $investments->map(fn (Investment $i) => $this->currentValue($i))->sum();
+        $totalValue = $investments->map(fn (Investment $i) => $this->valueInCurrency($i, $baseCurrency))->sum();
         $sectorTotals = [];
         $sectorCounts = [];
 
         foreach ($investments as $i) {
-            $value = $this->currentValue($i);
+            $value = $this->valueInCurrency($i, $baseCurrency);
             $allocations = $i->sector_allocations;
 
             if (! empty($allocations) && is_array($allocations)) {
@@ -345,5 +347,43 @@ final class DashboardCalculator
         $latest = $i->latestPrice?->first();
 
         return $this->valuation->currentValue($i, $latest?->price !== null ? (float) $latest->price : null);
+    }
+
+    private function normalizeRow(array $row, Investment $i, string $targetCurrency): array
+    {
+        if ($i->currency === $targetCurrency) {
+            return $row;
+        }
+
+        $valueConv = $this->fxService->convert($row['current_value'], $i->currency, $targetCurrency);
+        $costConv = $row['purchase_value'] !== null
+            ? $this->fxService->convert($row['purchase_value'], $i->purchase_currency ?? $i->currency, $targetCurrency)
+            : null;
+
+        $currentValue = $valueConv['rate'] !== null ? $valueConv['amount'] : $row['current_value'];
+        $purchaseValue = $costConv['rate'] !== null && $costConv !== null ? $costConv['amount'] : $row['purchase_value'];
+        $pnlAbsolute = ($purchaseValue !== null) ? $currentValue - $purchaseValue : null;
+        $pnlPercent = ($pnlAbsolute !== null && $purchaseValue > 0)
+            ? ($pnlAbsolute / $purchaseValue) * 100
+            : null;
+
+        return [
+            'current_value' => $currentValue,
+            'purchase_value' => $purchaseValue,
+            'pnl_absolute' => $pnlAbsolute,
+            'pnl_percent' => $pnlPercent,
+        ];
+    }
+
+    private function valueInCurrency(Investment $i, string $targetCurrency): float
+    {
+        $value = $this->currentValue($i);
+        if ($i->currency === $targetCurrency) {
+            return $value;
+        }
+
+        $conv = $this->fxService->convert($value, $i->currency, $targetCurrency);
+
+        return $conv['rate'] !== null ? $conv['amount'] : $value;
     }
 }

@@ -14,8 +14,8 @@ final readonly class PortfolioContext
     public function build(string $userId, string $baseCurrency): string
     {
         $summary = $this->calculator->summary($userId, $baseCurrency);
-        $allocation = $this->calculator->allocation($userId);
-        $breakdown = $this->calculator->breakdown($userId);
+        $allocation = $this->calculator->allocation($userId, $baseCurrency);
+        $breakdown = $this->calculator->breakdown($userId, $baseCurrency);
 
         $lines = [
             "Tu es un assistant financier personnel pour l'application Patrimoine.",

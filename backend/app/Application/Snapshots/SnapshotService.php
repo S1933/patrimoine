@@ -2,6 +2,7 @@
 
 namespace App\Application\Snapshots;
 
+use App\Application\FX\FxService;
 use App\Application\Valuation\InvestmentValuation;
 use App\Models\Investment;
 use App\Models\InvestmentSnapshot;
@@ -20,6 +21,7 @@ final class SnapshotService
 {
     public function __construct(
         private readonly InvestmentValuation $valuation,
+        private readonly FxService $fxService,
     ) {}
     public function takeDailySnapshot(string $userId, ?string $date = null): PortfolioSnapshot
     {
@@ -32,12 +34,27 @@ final class SnapshotService
             ->get();
 
         return DB::transaction(function () use ($userId, $date, $user, $investments) {
+            $totalValue = 0.0;
+            $totalCost = 0.0;
+            $fxRates = [];
+
             // Per-investment snapshots (idempotent upsert).
             foreach ($investments as $investment) {
                 $currentValue = $this->currentValue($investment);
                 $cost = $investment->purchase_price !== null
                     ? (float) $investment->quantity * (float) $investment->purchase_price
                     : 0.0;
+
+                // Convert to base currency for portfolio totals.
+                $valueConv = $this->fxService->convert($currentValue, $investment->currency, $user->base_currency);
+                $costConv = $this->fxService->convert($cost, $investment->purchase_currency ?? $investment->currency, $user->base_currency);
+
+                $totalValue += $valueConv['rate'] !== null ? $valueConv['amount'] : $currentValue;
+                $totalCost += $costConv['rate'] !== null ? $costConv['amount'] : $cost;
+
+                if ($valueConv['rate'] !== null && ! isset($fxRates[$valueConv['source'] ?? ''])) {
+                    $fxRates[$valueConv['source'] ?? ''] = $valueConv;
+                }
 
                 $snap = InvestmentSnapshot::firstOrNew([
                     'investment_id' => $investment->id,
@@ -55,12 +72,7 @@ final class SnapshotService
                 ])->save();
             }
 
-            $totalValue = $investments->sum(fn (Investment $i) => $this->currentValue($i));
-            $totalCost = $investments->sum(function (Investment $i) {
-                return $i->purchase_price !== null
-                    ? (float) $i->quantity * (float) $i->purchase_price
-                    : 0.0;
-            });
+            $fx = reset($fxRates);
 
             $portfolio = PortfolioSnapshot::firstOrNew([
                 'user_id' => $userId,
@@ -70,6 +82,9 @@ final class SnapshotService
                 'total_value' => round($totalValue, 2),
                 'total_cost' => round($totalCost, 2),
                 'currency' => $user->base_currency,
+                'fx_rate' => $fx ? $fx['rate'] : null,
+                'fx_source' => $fx ? $fx['source'] : null,
+                'fx_from_currency' => $fx ? $fx['from_currency'] : null,
                 'active_count' => $investments->count(),
             ])->save();
 

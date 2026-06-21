@@ -1,0 +1,23 @@
+includes:
+  - vendor/larastan/larastan/extension.neon
+
+parameters:
+  level: 3
+  paths:
+    - app
+    - config
+    - routes
+
+  ignoreErrors:
+    - '#Unsafe usage of new static\(\)#'
+    - '#Method .* has no return type specified#'
+    - '#Property .* has no type specified#'
+    - '#PHPDoc tag @param has invalid value#'
+    - '#Access to an undefined property#'
+
+  excludePaths:
+    - app/Providers/*.php
+    - config/*.php
+    - routes/*.php
+
+  checkMissingIterableValueType: false

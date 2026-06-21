@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 
 /**
  * Use case: fetch and persist the current price for one investment.
- * Records an asset_prices row + an api_sync_logs row.
+ * Records per-provider api_sync_logs rows + an asset_prices row (unless fallback).
  */
 final class FetchInvestmentPrice
 {
@@ -38,38 +38,80 @@ final class FetchInvestmentPrice
             Log::error('Pricing unexpected error', ['investment' => $investment->id, 'error' => $e->getMessage()]);
         }
 
-        $durationMs = (int) ((microtime(true) - $start) * 1000);
+        $totalDurationMs = (int) ((microtime(true) - $start) * 1000);
 
-        DB::transaction(function () use ($investment, $result, $runId, $durationMs) {
-            // Persist the price only if not an error.
-            $providerId = null;
-            if (! $result->isError()) {
-                $provider = PriceProvider::where('code', $result->source)->first();
-                $providerId = $provider?->id;
+        DB::transaction(function () use ($investment, $result, $runId, $totalDurationMs) {
+            $this->logAttempts($result, $investment, $runId);
 
-                AssetPrice::create([
+            if ($result->isError()) {
+                ApiSyncLog::create([
+                    'run_id' => $runId,
                     'investment_id' => $investment->id,
-                    'provider_id' => $providerId,
-                    'price' => $result->price,
-                    'currency' => $result->currency,
-                    'fetched_at' => $result->fetchedAt,
-                    'source_status' => $result->status,
+                    'status' => 'error',
+                    'duration_ms' => $totalDurationMs,
                     'error_message' => $result->errorMessage,
-                    'raw_payload' => $result->rawPayload,
+                    'created_at' => now(),
                 ]);
+
+                return;
             }
+
+            if ($result->status === 'fallback') {
+                ApiSyncLog::create([
+                    'run_id' => $runId,
+                    'investment_id' => $investment->id,
+                    'status' => 'fallback',
+                    'duration_ms' => $totalDurationMs,
+                    'error_message' => $result->errorMessage,
+                    'created_at' => now(),
+                ]);
+
+                return;
+            }
+
+            // Only persist a new asset_price row for fresh (non-fallback) results.
+            $provider = PriceProvider::where('code', $result->source)->first();
+
+            AssetPrice::create([
+                'investment_id' => $investment->id,
+                'provider_id' => $provider?->id,
+                'price' => $result->price,
+                'currency' => $result->currency,
+                'fetched_at' => $result->fetchedAt,
+                'source_status' => $result->status,
+                'error_message' => $result->errorMessage,
+                'raw_payload' => $result->rawPayload,
+            ]);
 
             ApiSyncLog::create([
                 'run_id' => $runId,
-                'provider_id' => $providerId,
                 'investment_id' => $investment->id,
-                'status' => $result->isError() ? 'error' : $result->status,
-                'duration_ms' => $durationMs,
+                'provider_id' => $provider?->id,
+                'status' => $result->status,
+                'duration_ms' => $totalDurationMs,
                 'error_message' => $result->errorMessage,
                 'created_at' => now(),
             ]);
         });
 
         return $result;
+    }
+
+    private function logAttempts(PriceResult $result, Investment $investment, string $runId): void
+    {
+        foreach ($result->attempts as $attempt) {
+            $provider = PriceProvider::where('code', $attempt['provider'])->first();
+            $status = $attempt['status'] === 'unavailable' ? 'error' : ($attempt['status'] === 'success' ? 'success' : 'error');
+
+            ApiSyncLog::create([
+                'run_id' => $runId,
+                'provider_id' => $provider?->id,
+                'investment_id' => $investment->id,
+                'status' => $status,
+                'duration_ms' => $attempt['duration_ms'],
+                'error_message' => $attempt['error'],
+                'created_at' => now(),
+            ]);
+        }
     }
 }

@@ -7,6 +7,9 @@ namespace App\Domain\Pricing;
  */
 final class PriceResult
 {
+    /** @var list<array{provider: string, status: string, duration_ms: int, error: string|null}> */
+    public array $attempts = [];
+
     public function __construct(
         public readonly float $price,
         public readonly string $currency,
@@ -16,6 +19,16 @@ final class PriceResult
         public readonly ?string $errorMessage = null,
         public readonly ?array $rawPayload = null,
     ) {}
+
+    /**
+     * @param list<array{provider: string, status: string, duration_ms: int, error: string|null}> $attempts
+     */
+    public function withAttempts(array $attempts): self
+    {
+        $this->attempts = $attempts;
+
+        return $this;
+    }
 
     public static function success(
         float $price,
@@ -38,11 +51,12 @@ final class PriceResult
         string $currency,
         string $source,
         string $errorMessage,
+        ?\DateTimeInterface $fetchedAt = null,
     ): self {
         return new self(
             price: $price,
             currency: $currency,
-            fetchedAt: now(),
+            fetchedAt: $fetchedAt ?? now(),
             source: $source,
             status: 'fallback',
             errorMessage: $errorMessage,

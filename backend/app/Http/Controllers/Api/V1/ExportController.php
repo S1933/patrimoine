@@ -69,12 +69,16 @@ class ExportController extends Controller
             fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM for Excel
             fputcsv($out, ['Name', 'Type', 'ISIN', 'Symbol', 'Quantity', 'Unit', 'Purchase price', 'Currency', 'Manual value', 'Status', 'Purchase date']);
 
+            $sanitize = fn ($val) => is_string($val) && preg_match('/^[=+\-@]/', $val)
+                ? "'" . $val
+                : ($val ?? '');
+
             foreach ($investments as $i) {
                 fputcsv($out, [
-                    $i->name,
-                    $i->assetType->label,
-                    $i->isin ?? '',
-                    $i->symbol ?? '',
+                    $sanitize($i->name),
+                    $sanitize($i->assetType->label),
+                    $sanitize($i->isin ?? ''),
+                    $sanitize($i->symbol ?? ''),
                     $i->quantity,
                     $i->unit,
                     $i->purchase_price ?? '',

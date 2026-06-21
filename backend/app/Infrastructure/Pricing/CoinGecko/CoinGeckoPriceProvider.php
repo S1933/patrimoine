@@ -86,7 +86,12 @@ final class CoinGeckoPriceProvider implements PriceProviderInterface
             price: (float) $data[$coinId][$currency],
             currency: strtoupper($currency),
             source: $this->code(),
-            rawPayload: $data,
+            rawPayload: [
+                'coin_id' => $coinId,
+                'price' => (float) $data[$coinId][$currency],
+                'currency' => strtoupper($currency),
+                'last_updated_at' => $data[$coinId]['last_updated_at'] ?? null,
+            ],
         );
     }
 

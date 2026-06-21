@@ -138,7 +138,7 @@ final class TwelveDataPriceProvider implements PriceProviderInterface
             price: (float) $price,
             currency: $currency,
             source: $this->code(),
-            rawPayload: $data,
+            rawPayload: $payload,
         );
     }
 

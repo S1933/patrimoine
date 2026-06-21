@@ -1,0 +1,55 @@
+name: patrimoine-prod
+
+services:
+  nginx:
+    ports:
+      - "${APP_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+
+  app:
+    ports: []
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/patrimoine.ini:ro
+
+  scheduler:
+    ports: []
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/patrimoine.ini:ro
+
+  worker:
+    ports: []
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/patrimoine.ini:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_PUBLIC_AUTH_BYPASS: "false"
+    command: ["node", "server.js"]
+
+  postgres:
+    ports: []
+
+  redis:
+    ports: []
+
+  mailpit:
+    ports: []
+    profiles: ["mail"]

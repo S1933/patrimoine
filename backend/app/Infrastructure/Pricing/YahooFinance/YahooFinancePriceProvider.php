@@ -96,9 +96,6 @@ final class YahooFinancePriceProvider implements PriceProviderInterface
             source: $this->code(),
             rawPayload: [
                 'resolved' => $resolved,
-                'chart' => $chart,
-                'meta' => $meta,
-                'quote' => $quote,
                 'metrics' => $metrics,
                 'fx_rate' => $fxRate,
                 'source_currency' => $sourceCurrency,

@@ -12,7 +12,7 @@ class PortfolioSnapshot extends Model
 
     protected $fillable = [
         'user_id', 'snapshot_date', 'total_value', 'total_cost',
-        'currency', 'active_count',
+        'currency', 'fx_rate', 'fx_source', 'fx_from_currency', 'active_count',
     ];
 
     protected function casts(): array

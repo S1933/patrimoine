@@ -24,36 +24,46 @@ class DashboardController extends Controller
 
     public function allocation(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()->json([
-            'data' => $this->calculator->allocation($request->user()->id),
+            'data' => $this->calculator->allocation($user->id, $user->base_currency),
         ]);
     }
 
     public function breakdown(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()->json([
-            'data' => $this->calculator->breakdown($request->user()->id),
+            'data' => $this->calculator->breakdown($user->id, $user->base_currency),
         ]);
     }
 
     public function countryAllocation(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()->json([
-            'data' => $this->calculator->countryAllocation($request->user()->id),
+            'data' => $this->calculator->countryAllocation($user->id, $user->base_currency),
         ]);
     }
 
     public function geography(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()->json([
-            'data' => $this->calculator->geographyAllocation($request->user()->id),
+            'data' => $this->calculator->geographyAllocation($user->id, $user->base_currency),
         ]);
     }
 
     public function sectorAllocation(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()->json([
-            'data' => $this->calculator->sectorAllocation($request->user()->id),
+            'data' => $this->calculator->sectorAllocation($user->id, $user->base_currency),
         ]);
     }
 

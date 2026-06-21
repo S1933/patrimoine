@@ -105,8 +105,6 @@ final class FinnhubPriceProvider implements PriceProviderInterface
             source: $this->code(),
             rawPayload: [
                 'resolved' => $resolved,
-                'quote' => $quote,
-                'candle' => $candle,
                 'metrics' => $metrics,
             ],
         );

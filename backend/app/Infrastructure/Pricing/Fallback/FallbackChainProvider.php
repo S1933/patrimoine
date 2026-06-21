@@ -42,23 +42,37 @@ final class FallbackChainProvider implements PriceProviderInterface
 
     public function fetch(Investment $investment, string $targetCurrency): PriceResult
     {
-        $errors = [];
+        $attempts = [];
 
         foreach ($this->providers as $provider) {
             if (! $provider->supports($investment)) {
                 continue;
             }
 
+            $start = microtime(true);
+
             try {
                 $result = $provider->fetch($investment, $targetCurrency);
+                $durationMs = (int) ((microtime(true) - $start) * 1000);
+
+                $attempts[] = [
+                    'provider' => $provider->code(),
+                    'status' => $result->status,
+                    'duration_ms' => $durationMs,
+                    'error' => $result->errorMessage,
+                ];
 
                 if (! $result->isError()) {
-                    return $result;
+                    return $result->withAttempts($attempts);
                 }
-
-                $errors[] = "[{$provider->code()}] {$result->errorMessage}";
             } catch (ProviderUnavailableException $e) {
-                $errors[] = $e->getMessage();
+                $durationMs = (int) ((microtime(true) - $start) * 1000);
+                $attempts[] = [
+                    'provider' => $provider->code(),
+                    'status' => 'unavailable',
+                    'duration_ms' => $durationMs,
+                    'error' => $e->getMessage(),
+                ];
                 Log::info('Provider fallback', ['provider' => $provider->code(), 'reason' => $e->getMessage()]);
 
                 continue;
@@ -76,13 +90,14 @@ final class FallbackChainProvider implements PriceProviderInterface
                 price: (float) $lastPrice->price,
                 currency: $lastPrice->currency,
                 source: $lastPrice->provider?->code ?? 'last-known',
-                errorMessage: implode(' | ', $errors),
-            );
+                errorMessage: implode(' | ', array_column($attempts, 'error')),
+                fetchedAt: $lastPrice->fetched_at,
+            )->withAttempts($attempts);
         }
 
         return PriceResult::error(
             'fallback-chain',
-            'Tous les providers ont échoué et aucun prix précédent n\'est disponible. '.implode(' | ', $errors),
-        );
+            'Tous les providers ont échoué et aucun prix précédent n\'est disponible. '.implode(' | ', array_column($attempts, 'error')),
+        )->withAttempts($attempts);
     }
 }
