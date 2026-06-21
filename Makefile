@@ -34,13 +34,31 @@ migrate-seed: ## Fresh + seed
 	docker compose exec app php artisan migrate:fresh --seed --force
 
 test: ## Run Pest tests
-	docker compose exec app php artisan test
+	docker compose exec \
+	  -e AUTH_BYPASS=false \
+	  -e DB_CONNECTION=sqlite \
+	  -e DB_DATABASE=:memory: \
+	  -e CACHE_STORE=array \
+	  -e QUEUE_CONNECTION=sync \
+	  app php artisan test
 
 test-unit: ## Pest unit only
-	docker compose exec app php artisan test --testsuite=Unit
+	docker compose exec \
+	  -e AUTH_BYPASS=false \
+	  -e DB_CONNECTION=sqlite \
+	  -e DB_DATABASE=:memory: \
+	  -e CACHE_STORE=array \
+	  -e QUEUE_CONNECTION=sync \
+	  app php artisan test --testsuite=Unit
 
 test-feature: ## Pest feature only
-	docker compose exec app php artisan test --testsuite=Feature
+	docker compose exec \
+	  -e AUTH_BYPASS=false \
+	  -e DB_CONNECTION=sqlite \
+	  -e DB_DATABASE=:memory: \
+	  -e CACHE_STORE=array \
+	  -e QUEUE_CONNECTION=sync \
+	  app php artisan test --testsuite=Feature
 
 shell: ## Shell into backend container
 	docker compose exec app sh

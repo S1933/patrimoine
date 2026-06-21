@@ -46,6 +46,48 @@ class StoreInvestmentRequest extends FormRequest
         ]);
     }
 
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $this->validateAllocations($validator, 'country_allocations', 'country');
+            $this->validateAllocations($validator, 'sector_allocations', 'sector');
+        });
+    }
+
+    private function validateAllocations($validator, string $field, string $keyName): void
+    {
+        $allocations = $this->input($field);
+        if ($allocations === null || ! is_array($allocations)) {
+            return;
+        }
+
+        $keys = [];
+        $totalPercent = 0;
+
+        foreach ($allocations as $index => $alloc) {
+            if (! isset($alloc[$keyName], $alloc['percent'])) {
+                continue;
+            }
+
+            $key = $alloc[$keyName];
+            if (in_array($key, $keys, true)) {
+                $validator->errors()->add(
+                    "$field.$index.$keyName",
+                    "La clé '$key' est dupliquée dans $field.",
+                );
+            }
+            $keys[] = $key;
+            $totalPercent += (float) $alloc['percent'];
+        }
+
+        if ($totalPercent > 100.01) {
+            $validator->errors()->add(
+                $field,
+                "La somme des pourcentages de $field ($totalPercent%) dépasse 100%.",
+            );
+        }
+    }
+
     public function messages(): array
     {
         return [

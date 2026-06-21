@@ -22,7 +22,7 @@ type ListParams = {
 type InvestmentResponse = { data: Investment };
 type ListResponse = Paginated<Investment>;
 type RefResponse = { data: AssetType[] | PriceProvider[] | Currency[] };
-type RefreshResponse = Investment & { meta?: RefreshPriceMeta };
+type RefreshResponse = { data: Investment; meta: RefreshPriceMeta };
 
 export const investmentsApi = {
   list: (params: ListParams = {}) =>

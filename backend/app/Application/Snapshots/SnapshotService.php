@@ -2,6 +2,7 @@
 
 namespace App\Application\Snapshots;
 
+use App\Application\Valuation\InvestmentValuation;
 use App\Models\Investment;
 use App\Models\InvestmentSnapshot;
 use App\Models\PortfolioSnapshot;
@@ -17,6 +18,9 @@ use Illuminate\Support\Facades\Log;
  */
 final class SnapshotService
 {
+    public function __construct(
+        private readonly InvestmentValuation $valuation,
+    ) {}
     public function takeDailySnapshot(string $userId, ?string $date = null): PortfolioSnapshot
     {
         $date = $date ?? now()->toDateString();
@@ -75,15 +79,11 @@ final class SnapshotService
 
     private function currentValue(Investment $i): float
     {
-        if ($i->manual_value !== null) {
-            return (float) $i->manual_value;
-        }
+        $marketPrice = $i->latestPrice?->first()?->price;
 
-        $latest = $i->latestPrice?->first();
-        if ($latest) {
-            return (float) $i->quantity * (float) $latest->price;
-        }
-
-        return 0.0;
+        return $this->valuation->currentValue(
+            $i,
+            $marketPrice !== null ? (float) $marketPrice : null,
+        );
     }
 }

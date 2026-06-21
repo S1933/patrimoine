@@ -20,6 +20,8 @@ return [
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
+    'bypass' => env('AUTH_BYPASS', false),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards

@@ -53,7 +53,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-patrimoine} -d ${DB_DATABASE:-patrimoine}"]
       interval: 5s
@@ -69,7 +69,7 @@ services:
     volumes:
       - redisdata:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -124,7 +124,7 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       NEXT_PUBLIC_API_URL: /api/v1
-      NEXT_PUBLIC_AUTH_BYPASS: "true"
+      NEXT_PUBLIC_AUTH_BYPASS: "${NEXT_PUBLIC_AUTH_BYPASS:-false}"
     networks: [patrimoine-net]
     restart: unless-stopped
 
@@ -132,8 +132,8 @@ services:
     image: axllent/mailpit:latest
     container_name: patrimoine-mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     networks: [patrimoine-net]
     restart: unless-stopped
 

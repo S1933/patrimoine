@@ -12,7 +12,11 @@ class AutoLogin
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (env('AUTH_BYPASS', false) && ! $request->user()) {
+        if (config('auth.bypass', false)) {
+            abort_unless(app()->environment(['local', 'testing']), 500);
+        }
+
+        if (config('auth.bypass', false) && ! $request->user()) {
             Auth::login(User::first());
         }
 

@@ -23,7 +23,7 @@ return new class extends Migration
             $table->foreign('investment_id')->references('id')->on('investments')->cascadeOnDelete();
             $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
 
-            $table->index(['investment_id', 'snapshot_date']);
+            $table->unique(['investment_id', 'snapshot_date']);
             $table->index(['user_id', 'snapshot_date']);
         });
     }
