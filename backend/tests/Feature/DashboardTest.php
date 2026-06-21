@@ -231,6 +231,65 @@ it('returns performance series', function () {
         ->assertJsonPath('data.1.total_value', fn ($v) => floatval($v) === 105000.0);
 });
 
+it('converts USD investments to EUR base currency via FX', function () {
+    $stockType = AssetType::firstOrCreate(
+        ['code' => 'stock'],
+        ['label' => 'Action', 'default_unit' => 'part', 'is_priced_externally' => true],
+    );
+
+    Investment::factory()->for($this->user)->create([
+        'asset_type_id' => $this->realEstateType->id,
+        'manual_value' => 100000,
+        'purchase_price' => 90000,
+        'currency' => 'EUR',
+        'status' => 'active',
+    ]);
+    Investment::factory()->for($this->user)->create([
+        'asset_type_id' => $stockType->id,
+        'manual_value' => 50000,
+        'purchase_price' => 45000,
+        'currency' => 'USD',
+        'status' => 'active',
+    ]);
+
+    Http::fake([
+        'query1.finance.yahoo.com/v8/finance/chart/EURUSD*' => Http::response([
+            'chart' => ['result' => [['meta' => ['regularMarketPrice' => 1.10]]]],
+        ]),
+    ]);
+
+    $this->getJson('/api/v1/dashboard/summary')
+        ->assertOk()
+        ->assertJsonPath('data.total_value', fn ($v) => floatval($v) === 100000.0 + round(50000 / 1.10, 2))
+        ->assertJsonPath('data.currency', 'EUR');
+});
+
+it('handles purchase currency different from investment currency', function () {
+    Investment::factory()->for($this->user)->create([
+        'asset_type_id' => $this->realEstateType->id,
+        'name' => 'US Stock',
+        'quantity' => 10,
+        'manual_value' => 5000,
+        'purchase_price' => 400,
+        'purchase_currency' => 'USD',
+        'currency' => 'EUR',
+        'status' => 'active',
+    ]);
+
+    Http::fake([
+        'query1.finance.yahoo.com/v8/finance/chart/EURUSD*' => Http::response([
+            'chart' => ['result' => [['meta' => ['regularMarketPrice' => 1.10]]]],
+        ]),
+        'query1.finance.yahoo.com/v8/finance/chart/USDEUR*' => Http::response([
+            'chart' => ['result' => [['meta' => ['regularMarketPrice' => 0.91]]]],
+        ]),
+    ]);
+
+    $this->getJson('/api/v1/dashboard/summary')
+        ->assertOk()
+        ->assertJsonPath('data.total_value', fn ($v) => floatval($v) === 5000.0);
+});
+
 it('only shows the authenticated user dashboard', function () {
     Investment::factory()->for(User::factory()->create())->create([
         'asset_type_id' => $this->realEstateType->id, 'manual_value' => 999999,

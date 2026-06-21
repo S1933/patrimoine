@@ -244,6 +244,49 @@ it('sets a manual value on an investment', function () {
     $this->assertNotNull($inv->fresh()->manual_value_updated_at);
 });
 
+it('rejects country allocations summing over 100%', function () {
+    $this->postJson('/api/v1/investments', [
+        'asset_type_id' => $this->cryptoType->id,
+        'name' => 'Test',
+        'quantity' => 10,
+        'unit' => 'part',
+        'currency' => 'EUR',
+        'country_allocations' => [
+            ['country' => 'FRA', 'percent' => 60],
+            ['country' => 'USA', 'percent' => 50],
+        ],
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['country_allocations']);
+});
+
+it('rejects duplicate country allocations', function () {
+    $this->postJson('/api/v1/investments', [
+        'asset_type_id' => $this->cryptoType->id,
+        'name' => 'Test',
+        'quantity' => 10,
+        'unit' => 'unit',
+        'currency' => 'EUR',
+        'country_allocations' => [
+            ['country' => 'FRA', 'percent' => 30],
+            ['country' => 'FRA', 'percent' => 30],
+        ],
+    ])->assertStatus(422);
+});
+
+it('rejects duplicate sector allocations', function () {
+    $this->postJson('/api/v1/investments', [
+        'asset_type_id' => $this->cryptoType->id,
+        'name' => 'Test',
+        'quantity' => 10,
+        'unit' => 'unit',
+        'currency' => 'EUR',
+        'sector_allocations' => [
+            ['sector' => 'Tech', 'percent' => 60],
+            ['sector' => 'Tech', 'percent' => 40],
+        ],
+    ])->assertStatus(422);
+});
+
 it('lists asset types, providers and currencies', function () {
     AssetType::firstOrCreate(['code' => 'cash'], ['label' => 'Cash', 'default_unit' => 'euros', 'is_priced_externally' => false]);
     PriceProvider::firstOrCreate(['code' => 'manual'], ['label' => 'Manuel', 'supported_types' => 1, 'is_active' => true, 'priority' => 90]);

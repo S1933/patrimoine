@@ -46,6 +46,24 @@ it('exports portfolio as CSV', function () {
         ->and($content)->toContain('200000');
 });
 
+it('neutralises CSV injection in cell values', function () {
+    Investment::factory()->for($this->user)->create([
+        'asset_type_id' => $this->realEstateType->id,
+        'name' => '=SUM(A1:A10)',
+        'isin' => '+1234567890',
+        'symbol' => '-danger',
+        'status' => 'active',
+        'currency' => 'EUR',
+    ]);
+
+    $response = $this->get('/api/v1/exports/portfolio.csv');
+    $content = $response->streamedContent();
+
+    expect($content)->toContain("'=SUM(A1:A10)")
+        ->and($content)->toContain("'+1234567890")
+        ->and($content)->toContain("'-danger");
+});
+
 it('only exports the authenticated user investments', function () {
     Investment::factory()->for(User::factory()->create())->create([
         'name' => 'Not mine', 'asset_type_id' => $this->realEstateType->id, 'manual_value' => 999999,

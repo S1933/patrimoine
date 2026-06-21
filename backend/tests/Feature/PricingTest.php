@@ -136,7 +136,32 @@ it('handles multiple price fetches and keeps history', function () {
     $service->execute($investment);
 
     expect(AssetPrice::where('investment_id', $investment->id)->count())->toBe(2);
-    expect(ApiSyncLog::where('investment_id', $investment->id)->count())->toBe(2);
+    expect(ApiSyncLog::where('investment_id', $investment->id)->count())->toBe(4);
+});
+
+it('fallback preserves original fetched_at date', function () {
+    $investment = Investment::factory()->for($this->user)->create([
+        'asset_type_id' => $this->realEstateType->id,
+        'manual_value' => null,
+        'currency' => 'EUR',
+    ]);
+
+    $originalDate = now()->subDays(5);
+    AssetPrice::create([
+        'investment_id' => $investment->id,
+        'provider_id' => null,
+        'price' => 200000,
+        'currency' => 'EUR',
+        'fetched_at' => $originalDate,
+        'source_status' => 'success',
+    ]);
+
+    $service = app(FetchInvestmentPrice::class);
+    $result = $service->execute($investment);
+
+    expect($result->status)->toBe('fallback')
+        ->and($result->price)->toBe(200000.0)
+        ->and($result->fetchedAt->toDateString())->toBe($originalDate->toDateString());
 });
 
 it('has correct asset type code enum', function () {

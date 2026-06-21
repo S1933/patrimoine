@@ -73,6 +73,17 @@ it('registers a new user and logs them in', function () {
     $this->assertAuthenticated('web');
 });
 
+it('refuses bypass auto-login when AUTH_BYPASS is true outside local/testing', function () {
+    $this->app['env'] = 'production';
+    config()->set('auth.bypass', true);
+
+    $this->getJson('/api/v1/auth/me')
+        ->assertStatus(500);
+
+    $this->app['env'] = 'testing';
+    config()->set('auth.bypass', false);
+});
+
 it('serves a CSRF cookie for the SPA', function () {
     $this->get('/sanctum/csrf-cookie')->assertNoContent();
 });
