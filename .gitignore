@@ -1,0 +1,36 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Backend — Laravel
+backend/vendor/
+backend/node_modules/
+backend/storage/framework/cache/data/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+backend/storage/logs/
+backend/database/database.sqlite
+backend/database/database.sqlite-journal
+backend/.phpunit.result.cache
+
+# Backend — IDE helpers
+backend/.phpstorm.meta.php
+backend/_ide_helper.php
+backend/_ide_helper_models.php
+
+# Frontend — Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
